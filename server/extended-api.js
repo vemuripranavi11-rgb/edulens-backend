@@ -427,10 +427,11 @@ function initExtendedApi(app, db, { SECRET, auth, requireRole, id, now, audit })
     }
 
     // Check if physical file exists on disk
-    if (doc.file_path && fs.existsSync(doc.file_path)) {
+    const documentPath = doc.storage_path || doc.file_path;
+    if (documentPath && fs.existsSync(documentPath)) {
       res.setHeader("Content-Type", doc.type || "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="${doc.name}"`);
-      return fs.createReadStream(doc.file_path).pipe(res);
+      return fs.createReadStream(documentPath).pipe(res);
     }
 
     // Otherwise render high-fidelity SVG preview
@@ -449,8 +450,9 @@ function initExtendedApi(app, db, { SECRET, auth, requireRole, id, now, audit })
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Document not found." } });
     }
 
-    if (doc.file_path && fs.existsSync(doc.file_path)) {
-      return res.download(doc.file_path, doc.name);
+    const documentPath = doc.storage_path || doc.file_path;
+    if (documentPath && fs.existsSync(documentPath)) {
+      return res.download(documentPath, doc.name);
     }
 
     // Download SVG preview if physical file not on disk

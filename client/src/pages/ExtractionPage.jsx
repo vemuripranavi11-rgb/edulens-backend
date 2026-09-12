@@ -109,7 +109,6 @@ export default function ExtractionPage({ selectedCaseId, go, user }) {
       const result = await api(`/api/v1/ai/extract/${selectedDoc.id}`, { method: "POST" });
       setRun(result.run);
       setMessage(`Extraction complete using ${result.run.provider} (${result.run.model}). Extracted ${result.run.result?.fields?.length || 0} fields.`);
-      await loadCaseDetail(caseId);
     } catch (err) {
       setError("AI Extraction failed: " + err.message);
     } finally {
@@ -287,6 +286,8 @@ export default function ExtractionPage({ selectedCaseId, go, user }) {
                 <strong>{activeCategory}</strong>
                 <span className="schemaEntitiesCount">({expectedSchema.length} schema targets)</span>
               </div>
+
+              {run.warning && <Notice type="warning">{run.warning}</Notice>}
 
               {/* Extracted Fields Table */}
               <div className="customTableWrapper">
