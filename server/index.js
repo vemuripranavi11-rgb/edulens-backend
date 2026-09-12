@@ -465,7 +465,12 @@ async function runGeminiExtraction({ documentName, documentType, text }) {
     return null;
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.7-flash";
+  const configuredModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const models = [
+    configuredModel,
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
+  ].filter((model, index, list) => list.indexOf(model) === index);
 
   const schema = {
     type: "object",
@@ -501,35 +506,54 @@ Current document type: ${documentType}
 OCR TEXT:
 ${text.slice(0, 30000)}`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }]
+  let data;
+  let model = configuredModel;
+  let lastError;
+
+  for (const candidateModel of models) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: schema
           }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: schema
-        }
-      })
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data?.error?.message || `Gemini request failed with status ${response.status}.`
+        })
+      }
     );
+
+    data = await response.json();
+
+    if (response.ok) {
+      model = candidateModel;
+      lastError = undefined;
+      break;
+    }
+
+    const message = data?.error?.message || `Gemini request failed with status ${response.status}.`;
+    const transient = [429, 500, 503].includes(response.status) || /high demand|temporarily|unavailable|resource exhausted/i.test(message);
+
+    if (!transient) {
+      throw new Error(message);
+    }
+
+    lastError = new Error(message);
+  }
+
+  if (lastError) {
+    throw lastError;
   }
 
   const textResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -2209,7 +2233,7 @@ app.post(
         document.id,
         document.case_id,
         "Gemini",
-        process.env.GEMINI_MODEL || "gemini-3.7-flash",
+        process.env.GEMINI_MODEL || "gemini-2.5-flash",
         "failed",
         0,
         JSON.stringify({ error: error.message }),

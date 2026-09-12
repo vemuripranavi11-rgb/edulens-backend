@@ -15,7 +15,7 @@ The requirements deployment model uses Vercel for the frontend and Render for th
 - Build command: `npm ci`
 - Start command: `npm start`
 - Root directory: the project root containing `package.json`
-- Required variables: `PORT`, `JWT_SECRET`, `FRONTEND_URL`, `PUBLIC_API_URL`, `GEMINI_API_KEY`, and `GEMINI_MODEL`
+- Required variables: `PORT`, `JWT_SECRET`, `FRONTEND_URL`, `PUBLIC_API_URL`, `GEMINI_API_KEY`, and `GEMINI_MODEL` (recommended: `gemini-2.5-flash`)
 - Health check: `GET /api/health`
 
 Set `FRONTEND_URL` to the exact Vercel origin and `PUBLIC_API_URL` to the exact Render origin.
