@@ -1,0 +1,32 @@
+{
+  "name": "edu-intake-hub",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "node --experimental-sqlite server/index.js",
+    "client": "vite --config client/vite.config.js",
+    "build": "vite build --config client/vite.config.js",
+    "start": "node --experimental-sqlite server/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.0",
+    "multer": "^2.3.0",
+    "pdf-parse": "^2.4.5",
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^9.2.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "vite": "^8.2.2"
+  }
+}
