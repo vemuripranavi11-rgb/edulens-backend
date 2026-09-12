@@ -91,7 +91,6 @@ db.exec(`
     status TEXT,
     checksum TEXT,
     created_at TEXT,
-    storage_path TEXT,
     FOREIGN KEY(case_id)
       REFERENCES cases(id)
   );
@@ -158,14 +157,6 @@ db.exec(`
     FOREIGN KEY(case_id) REFERENCES cases(id)
   );
 `);
-
-try {
-  db.exec("ALTER TABLE documents ADD COLUMN storage_path TEXT");
-} catch (error) {
-  if (!String(error.message).includes("duplicate column name")) {
-    throw error;
-  }
-}
 
 // =================================
 // HELPER FUNCTIONS
@@ -683,8 +674,7 @@ if (!existingCase) {
     // Demo document
     db.prepare(`
       INSERT INTO documents
-        (id, case_id, name, type, status, checksum, created_at, storage_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       id(),
       caseId,
@@ -831,13 +821,10 @@ const allowedOrigins = [
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
-const isAllowedOrigin = (origin) =>
-  !origin || allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin);
-
 app.use(
   cors({
     origin(origin, callback) {
-      if (isAllowedOrigin(origin)) {
+      if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
@@ -1869,10 +1856,9 @@ db.prepare(`
           type,
           status,
           checksum,
-          created_at,
-          storage_path
+          created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         documentId,
         caseId,
@@ -1880,8 +1866,7 @@ db.prepare(`
         req.file.mimetype,
         "processing",
         checksum,
-        now(),
-        req.file.path
+        now()
       );
 
       // --------------------------------------------------------
@@ -2132,35 +2117,15 @@ app.post(
       LIMIT 1
     `).get(document.id);
 
-    let ocrText = ocrField?.field_value || "";
-    let extractionWarning = "";
+    const ocrText = ocrField?.field_value || "";
 
     if (!ocrText.trim()) {
-      const storedPath = document.storage_path;
-      const matchingUpload = fs
-        .readdirSync(uploadsDir)
-        .map((fileName) => path.join(uploadsDir, fileName))
-        .find((filePath) => {
-          const sourceName = path.basename(filePath).replace(/^\d+-/, "");
-          const normaliseName = (value) => value
-            .toLowerCase()
-            .replace(/[_-]+/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-          return normaliseName(sourceName) === normaliseName(document.name);
-        });
-      const sourcePath = storedPath && fs.existsSync(storedPath)
-        ? storedPath
-        : matchingUpload;
-
-      if (sourcePath) {
-        ocrText = await extractTextFromDocument(sourcePath, document.type);
-        extractionWarning = ocrText.trim()
-          ? "OCR text was recovered from the document source."
-          : "The document source was opened, but no readable text was detected.";
-      } else {
-        extractionWarning = "The original document source is unavailable, so no readable OCR text could be recovered.";
-      }
+      return res.status(400).json({
+        error: {
+          code: "OCR_TEXT_REQUIRED",
+          message: "Run document OCR first. No OCR text is available for this document."
+        }
+      });
     }
 
     const runId = id();
@@ -2226,8 +2191,7 @@ app.post(
           confidence: result.overallConfidence,
           reviewerStatus,
           createdAt: startedAt,
-          result,
-          warning: extractionWarning || undefined
+          result
         }
       });
     } catch (error) {

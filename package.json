@@ -2,6 +2,9 @@
   "name": "edu-intake-hub",
   "private": true,
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "node --experimental-sqlite server/index.js",

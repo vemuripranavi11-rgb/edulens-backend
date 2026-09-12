@@ -1,9 +1,52 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function DocumentViewer({ document, extractedFields = [], onClose }) {
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [showHighlights, setShowHighlights] = useState(true);
+  const [previewSrc, setPreviewSrc] = useState("");
+
+  const previewUrl = document?.preview_url || (document ? `/api/v1/documents/${document.id}/file` : "");
+
+  useEffect(() => {
+    if (!previewUrl) {
+      setPreviewSrc("");
+      return undefined;
+    }
+
+    let objectUrl = "";
+    const controller = new AbortController();
+
+    const loadPreview = async () => {
+      setPreviewSrc("");
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(previewUrl, {
+          signal: controller.signal,
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+
+        if (!response.ok) {
+          throw new Error(`Preview request failed with status ${response.status}`);
+        }
+
+        objectUrl = URL.createObjectURL(await response.blob());
+        setPreviewSrc(objectUrl);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Failed to load document preview:", error);
+        }
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [previewUrl]);
 
   if (!document) {
     return (
@@ -14,7 +57,6 @@ export default function DocumentViewer({ document, extractedFields = [], onClose
     );
   }
 
-  const previewUrl = document.preview_url || `/api/v1/documents/${document.id}/file`;
   const downloadUrl = document.download_url || `/api/v1/documents/${document.id}/download`;
 
   const handleZoomIn = () => setZoom((z) => Math.min(200, z + 20));
@@ -24,6 +66,28 @@ export default function DocumentViewer({ document, extractedFields = [], onClose
     setRotation(0);
   };
   const handleRotate = () => setRotation((r) => (r + 90) % 360);
+
+  const handleDownload = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(downloadUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download request failed with status ${response.status}`);
+      }
+
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = document.name;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error("Failed to download document:", error);
+    }
+  };
 
   return (
     <div className="documentViewerCard">
@@ -56,14 +120,14 @@ export default function DocumentViewer({ document, extractedFields = [], onClose
           >
             ✦ Highlights
           </button>
-          <a
-            href={downloadUrl}
-            download={document.name}
+          <button
+            type="button"
+            onClick={handleDownload}
             className="toolBtn downloadBtn"
             title="Download Document"
           >
             ⬇ Download
-          </a>
+          </button>
           {onClose && (
             <button className="toolBtn closeBtn" onClick={onClose} title="Close Viewer">
               ✕
@@ -89,25 +153,26 @@ export default function DocumentViewer({ document, extractedFields = [], onClose
             transition: "transform 0.15s ease-out"
           }}
         >
-          {document.type?.includes("pdf") ? (
+          {previewSrc && document.type?.includes("pdf") ? (
             <object
-              data={previewUrl}
+              data={previewSrc}
               type="application/pdf"
               className="embeddedDocumentObject"
             >
-              {/* Fallback image/svg if browser PDF plugin disabled */}
               <img
-                src={previewUrl}
+                src={previewSrc}
                 alt={document.name}
                 className="documentImagePreview"
               />
             </object>
-          ) : (
+          ) : previewSrc ? (
             <img
-              src={previewUrl}
+              src={previewSrc}
               alt={document.name}
               className="documentImagePreview"
             />
+          ) : (
+            <div className="viewerPlaceholder">Loading document preview…</div>
           )}
 
           {/* Optional Highlights Overlay */}
